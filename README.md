@@ -393,15 +393,3 @@ wget -O- http://node2:5002/health
 4. Push to branch (`git push origin feature/AmazingFeature`)
 5. Open Pull Request
 
-## 📝 License
-
-Educational project for Distributed Systems course.
-
-## 👥 Authors
-
-Distributed Systems Course Project  
-[University Name]
-
----
-
-**Built for Distributed Systems Course (TUGAS 2)**
