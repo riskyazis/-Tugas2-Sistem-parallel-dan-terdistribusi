@@ -1,0 +1,408 @@
+openapi: 3.0.3
+info:
+  title: Distributed Synchronization System API
+  description: REST API for distributed queue, cache, and lock operations with Raft consensus
+  version: 1.0.0
+  contact:
+    name: Distributed Systems Team
+    email: support@distributedsystem.local
+
+servers:
+  - url: http://localhost:5001
+    description: Node 1
+  - url: http://localhost:5002
+    description: Node 2
+  - url: http://localhost:5003
+    description: Node 3
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check if the node is healthy and operational
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Node is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  node_id:
+                    type: integer
+                    example: 1
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /cluster:
+    get:
+      summary: Cluster Information
+      description: Get information about the cluster configuration
+      tags:
+        - Cluster
+      responses:
+        "200":
+          description: Cluster information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cluster_size:
+                    type: integer
+                    example: 3
+                  node_id:
+                    type: integer
+                    example: 1
+                  peers:
+                    type: array
+                    items:
+                      type: string
+                    example: ["http://node-2:5002", "http://node-3:5003"]
+                  raft_state:
+                    type: string
+                    example: "follower"
+                  raft_term:
+                    type: integer
+                    example: 5
+
+  /stats:
+    get:
+      summary: Node Statistics
+      description: Get operational statistics for this node
+      tags:
+        - Monitoring
+      responses:
+        "200":
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node_id:
+                    type: integer
+                  raft:
+                    type: object
+                    properties:
+                      state:
+                        type: string
+                      term:
+                        type: integer
+                      leader:
+                        type: integer
+                  queue:
+                    type: object
+                    properties:
+                      total_enqueued:
+                        type: integer
+                      total_dequeued:
+                        type: integer
+                  cache:
+                    type: object
+                    properties:
+                      hits:
+                        type: integer
+                      misses:
+                        type: integer
+                      size:
+                        type: integer
+
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      description: Get metrics in Prometheus format
+      tags:
+        - Monitoring
+      responses:
+        "200":
+          description: Metrics in Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /api/queue/enqueue:
+    post:
+      summary: Enqueue Message
+      description: Add a message to the distributed queue
+      tags:
+        - Queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - queue
+                - message
+              properties:
+                queue:
+                  type: string
+                  description: Queue name
+                  example: "tasks_queue"
+                message:
+                  type: object
+                  description: Message payload
+                  example:
+                    id: 123
+                    data: "process this task"
+                    priority: 1
+      responses:
+        "200":
+          description: Message enqueued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message_id:
+                    type: string
+                  queue:
+                    type: string
+        "500":
+          description: Internal server error
+
+  /api/queue/dequeue:
+    post:
+      summary: Dequeue Message
+      description: Remove and retrieve a message from the queue
+      tags:
+        - Queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - queue
+              properties:
+                queue:
+                  type: string
+                  description: Queue name
+                  example: "tasks_queue"
+      responses:
+        "200":
+          description: Message dequeued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: object
+                  queue:
+                    type: string
+        "500":
+          description: Internal server error
+
+  /api/cache/set:
+    post:
+      summary: Set Cache Value
+      description: Store a value in the distributed cache with MESI coherence
+      tags:
+        - Cache
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - value
+              properties:
+                key:
+                  type: string
+                  example: "user:123"
+                value:
+                  type: object
+                  example:
+                    name: "John Doe"
+                    email: "john@example.com"
+      responses:
+        "200":
+          description: Value cached successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  key:
+                    type: string
+                  state:
+                    type: string
+                    enum: [MODIFIED, EXCLUSIVE, SHARED, INVALID]
+                    example: "SHARED"
+
+  /api/cache/get:
+    get:
+      summary: Get Cache Value
+      description: Retrieve a value from the distributed cache
+      tags:
+        - Cache
+      parameters:
+        - in: query
+          name: key
+          required: true
+          schema:
+            type: string
+          description: Cache key
+          example: "user:123"
+      responses:
+        "200":
+          description: Value retrieved successfully or cache miss
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  key:
+                    type: string
+                  value:
+                    type: object
+                  state:
+                    type: string
+                  message:
+                    type: string
+                    example: "Cache miss"
+
+  /api/cache/delete:
+    delete:
+      summary: Delete Cache Value
+      description: Remove a value from the distributed cache
+      tags:
+        - Cache
+      parameters:
+        - in: query
+          name: key
+          required: true
+          schema:
+            type: string
+          description: Cache key to delete
+      responses:
+        "200":
+          description: Value deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  key:
+                    type: string
+                  state:
+                    type: string
+                    example: "INVALID"
+
+  /api/lock/acquire:
+    post:
+      summary: Acquire Distributed Lock
+      description: Acquire a distributed lock on a resource (requires Raft leader)
+      tags:
+        - Lock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resource
+              properties:
+                resource:
+                  type: string
+                  description: Resource identifier
+                  example: "database_table_1"
+                timeout:
+                  type: integer
+                  description: Lock timeout in seconds
+                  example: 10
+                  default: 10
+      responses:
+        "200":
+          description: Lock acquired successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  resource:
+                    type: string
+                  holder:
+                    type: integer
+        "409":
+          description: Failed to acquire lock (resource already locked)
+        "500":
+          description: Internal server error (e.g., no Raft leader)
+
+  /api/lock/release:
+    post:
+      summary: Release Distributed Lock
+      description: Release a previously acquired lock
+      tags:
+        - Lock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resource
+              properties:
+                resource:
+                  type: string
+                  description: Resource identifier
+                  example: "database_table_1"
+      responses:
+        "200":
+          description: Lock released successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  resource:
+                    type: string
+        "409":
+          description: Failed to release lock
+        "500":
+          description: Internal server error
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Cluster
+    description: Cluster management endpoints
+  - name: Monitoring
+    description: Monitoring and metrics endpoints
+  - name: Queue
+    description: Distributed queue operations
+  - name: Cache
+    description: Distributed cache with MESI coherence
+  - name: Lock
+    description: Distributed lock manager
